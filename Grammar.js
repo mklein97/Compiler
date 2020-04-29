@@ -2,27 +2,30 @@
 exports.__esModule = true;
 var Node_1 = require("./Node");
 var Grammar = /** @class */ (function () {
-    function Grammar(input) {
-        this.terminals = new Array;
-        this.nonTerminals = new Array;
-        //this.terminals = [];
-        var initarray = input.split('\n\n');
+    function Grammar(Gram) {
+        this.terminals = [];
+        this.nonTerminals = [];
         var s = new Set();
-        this.terminals.push(["WHITESPACE", RegExp("\\s+")]);
-        var terms = initarray[0].split("\n");
-        var nonTerms = initarray[1].split("\n");
+        var input = Gram.split("\n\n");
+        var terms = input[0].split("\n");
+        var nonTerms = input[1].split("\n");
         for (var i = 0; i < terms.length; i++) {
-            if (terms[i].length == 0)
+            if (terms[i].length == 0) {
                 continue;
-            else if (!terms[i].includes(" -> "))
+            }
+            else if (!terms[i].includes(" -> ")) {
                 throw new Error("No Identifiers");
+            }
             var ID = terms[i].split(" -> ");
-            if (s.has(ID[0]))
-                throw new Error("Duplicate variable");
+            if (s.has(ID[0])) {
+                //console.log(ID[0]);
+                throw new Error("Already has that variable");
+            }
             else if (ID[0] == "")
                 throw new Error("Empty ID");
-            if (s.has(ID[1]))
-                throw new Error("Duplicate Regex");
+            if (s.has(ID[1])) {
+                throw new Error("Regex already created");
+            }
             else if (ID[1] == "")
                 throw new Error("Empty Regex");
             try {
@@ -36,10 +39,12 @@ var Grammar = /** @class */ (function () {
             this.terminals[i] = [ID[0], RegExp(ID[1])];
         }
         for (var i = 0; i < nonTerms.length; i++) {
-            if (nonTerms[i].length == 0)
+            if (nonTerms[i].length == 0) {
                 continue;
-            else if (!nonTerms[i].includes(" -> "))
+            }
+            else if (!nonTerms[i].includes(" -> ")) {
                 throw new Error("No junction");
+            }
             var ID = nonTerms[i].split(" -> ");
             if (ID[0] == "")
                 throw new Error("Empty ID");
@@ -59,8 +64,8 @@ var Grammar = /** @class */ (function () {
         this.dfs(start, used);
         if (s !== undefined) {
             s.forEach(function (def) {
-                if (!used.has(def))
-                    throw new Error(def + " was defined but is not used");
+                if (!used.has(def)) { }
+                //throw new Error(def + " was defined but is not used");
             });
         }
         if (used != undefined) {
@@ -69,6 +74,7 @@ var Grammar = /** @class */ (function () {
                     throw new Error(v + " is used but is not defined");
             });
         }
+        //let bar: Set<string> = new Set();
     }
     Grammar.prototype.dfs = function (node, used) {
         var _this = this;
@@ -88,8 +94,9 @@ var Grammar = /** @class */ (function () {
         }
         if (node.n !== undefined) {
             node.n.forEach(function (t) {
-                if (!used.has(t.label))
+                if (!used.has(t.label)) {
                     _this.dfs(t, used);
+                }
             });
         }
     };

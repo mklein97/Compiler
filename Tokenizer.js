@@ -3,37 +3,71 @@ exports.__esModule = true;
 var Token_1 = require("./Token");
 var Tokenizer = /** @class */ (function () {
     function Tokenizer(grammar) {
+        this.currentLine = 1;
+        this.idx = 0; //index of next unparsed char in inputData
+        this.previousList = [];
         this.grammar = grammar;
-        this.idx = 0;
-        this.lineNumber = 1;
+        var addWhite = true;
+        var addComment = true;
+        for (var i = 0; i < this.grammar.terminals.length; ++i) {
+            if (this.grammar.terminals[i][0] == "WHITESPACE")
+                addWhite = false;
+            if (this.grammar.terminals[i][0] == "COMMENT")
+                addComment = false;
+        }
+        if (addWhite)
+            this.grammar.terminals.push(["WHITESPACE", new RegExp("\\s+")]);
+        if (addComment)
+            this.grammar.terminals.push(["COMMENT", new RegExp("/\\*(.|\\n)*?\\*/")]);
     }
     Tokenizer.prototype.setInput = function (inputData) {
         this.inputData = inputData;
+        this.currentLine = 1;
         this.idx = 0;
-        this.lineNumber = 1;
+        console.log(inputData);
+    };
+    Tokenizer.prototype.peek = function () {
+        var tmpCur = this.cur;
+        var tmpLine = this.currentLine;
+        var tmpList = this.previousList;
+        var tmpIdx = this.idx;
+        var tmpNext = this.next();
+        this.cur = tmpCur;
+        this.currentLine = tmpLine;
+        this.previousList = tmpList;
+        this.idx = tmpIdx;
+        return tmpNext;
+    };
+    Tokenizer.prototype.previous = function () {
+        if (this.previousList.length < 2) {
+            return undefined;
+        }
+        return this.previousList[this.previousList.length - 2];
     };
     Tokenizer.prototype.next = function () {
-        if (this.idx >= this.inputData.length - 1) {
+        if (this.idx >= this.inputData.length) {
             //special "end of file" metatoken
-            return new Token_1.Token("$", undefined, this.lineNumber);
+            return new Token_1.Token("$", undefined, this.currentLine);
         }
         for (var i = 0; i < this.grammar.terminals.length; ++i) {
             var terminal = this.grammar.terminals[i];
             var sym = terminal[0];
-            //console.log(terminal[1]);
-            var rex = new RegExp(terminal[1], "gy"); //RegExp
+            var rex = new RegExp(terminal[1], "y"); //RegExp
             rex.lastIndex = this.idx; //tell where to start searching
-            //console.log(String(this.grammar.terminals[i]));
             var m = rex.exec(this.inputData); //do the search
             if (m) {
                 //m[0] contains matched text as string
                 var lexeme = m[0];
                 this.idx += lexeme.length;
-                var templine = this.lineNumber;
-                this.lineNumber += lexeme.split('\n').length - 1;
+                var tmp = this.currentLine;
+                this.currentLine += lexeme.split('\n').length - 1;
                 if (sym !== "WHITESPACE" && sym !== "COMMENT") {
                     //return new Token using sym, lexeme, and line number
-                    return new Token_1.Token(sym, lexeme, templine);
+                    this.cur = new Token_1.Token(sym, lexeme, tmp);
+                    this.previousList.push(this.cur);
+                    if (this.previousList.length > 2)
+                        this.previousList.shift();
+                    return this.cur;
                 }
                 else {
                     //skip whitespace and get next real token
@@ -42,7 +76,7 @@ var Tokenizer = /** @class */ (function () {
             }
         }
         //no match; syntax error
-        throw new Error("No match!");
+        throw new Error("Syntax error");
     };
     return Tokenizer;
 }());
