@@ -24,7 +24,7 @@ var Tokenizer = /** @class */ (function () {
         this.inputData = inputData;
         this.currentLine = 1;
         this.idx = 0;
-        console.log(inputData);
+        //console.log(inputData);
     };
     Tokenizer.prototype.peek = function () {
         var tmpCur = this.cur;
@@ -65,8 +65,9 @@ var Tokenizer = /** @class */ (function () {
                     //return new Token using sym, lexeme, and line number
                     this.cur = new Token_1.Token(sym, lexeme, tmp);
                     this.previousList.push(this.cur);
-                    if (this.previousList.length > 2)
+                    if (this.previousList.length > 2) {
                         this.previousList.shift();
+                    }
                     return this.cur;
                 }
                 else {

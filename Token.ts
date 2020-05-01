@@ -1,12 +1,13 @@
-export class Token 
-{
+export class Token {
     sym: string;
-    lexeme: string;
     line: number;
-    constructor(sym:string, lexeme:string, line:number)
-    {
+    lexeme: string;
+    constructor(sym: string, lexeme: string, line: number) {
         this.sym = sym;
-        this.lexeme = lexeme;
         this.line = line;
+        this.lexeme = lexeme;
+    }
+    toString() {
+        return `${this.sym} ${this.line} ${this.lexeme}`
     }
 }
