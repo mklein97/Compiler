@@ -130,6 +130,7 @@ var Grammar = /** @class */ (function () {
     Grammar.prototype.getFirst = function () {
         var _this = this;
         var first = new Map();
+        this.nullables = this.getNullable();
         this.nonTerminals.forEach(function (v) {
             first.set(v[0], new Set());
         });
@@ -137,7 +138,6 @@ var Grammar = /** @class */ (function () {
             first.set(v[0], new Set());
             first.get(v[0]).add(v[0]);
         });
-        this.nullables = this.getNullable();
         var _loop_1 = function () {
             var done = false;
             this_1.nonTerminals.forEach(function (v) {
@@ -167,6 +167,70 @@ var Grammar = /** @class */ (function () {
                 break;
         }
         return first;
+    };
+    Grammar.prototype.getFollow = function () {
+        var _this = this;
+        var follow = new Map();
+        var first = this.getFirst();
+        this.nullables = this.getNullable();
+        var isfollow = true;
+        this.nonTerminals.forEach(function (v) {
+            if (isfollow) {
+                follow.set(v[0], new Set().add('$'));
+                isfollow = false;
+            }
+            else
+                follow.set(v[0], new Set());
+        });
+        var _loop_2 = function () {
+            var done = false;
+            this_2.nonTerminals.forEach(function (v) {
+                var productions = v[1].split("|");
+                productions.forEach(function (p) {
+                    var prods = p.trim().split(" ");
+                    var _loop_3 = function (i) {
+                        var x = prods[i];
+                        var bool = false;
+                        var has = _this.nonTerminals.some(function (h) { return h.includes(x); });
+                        if (has) {
+                            for (var j = i + 1; j < prods.length; j++) {
+                                var y = prods[j];
+                                first.get(y).forEach(function (item) {
+                                    if (!follow.get(x).has(item)) {
+                                        follow.get(x).add(item);
+                                        done = true;
+                                    }
+                                });
+                                if (!_this.nullables.has(y)) {
+                                    bool = true;
+                                    break;
+                                }
+                            }
+                            if (!bool) {
+                                follow.get(v[0]).forEach(function (val) {
+                                    if (!follow.get(x).has(val)) {
+                                        follow.get(x).add(val);
+                                        done = true;
+                                    }
+                                });
+                            }
+                        }
+                    };
+                    for (var i = 0; i < prods.length; i++) {
+                        _loop_3(i);
+                    }
+                });
+            });
+            if (!done)
+                return "break";
+        };
+        var this_2 = this;
+        while (1) {
+            var state_2 = _loop_2();
+            if (state_2 === "break")
+                break;
+        }
+        return follow;
     };
     return Grammar;
 }());

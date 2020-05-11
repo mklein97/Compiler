@@ -152,6 +152,7 @@ export class Grammar
     getFirst()
     {
         let first = new Map<string, Set<string>>();
+        this.nullables = this.getNullable();
         this.nonTerminals.forEach(v => 
         {
             first.set(v[0], new Set<string>());
@@ -161,7 +162,6 @@ export class Grammar
             first.set(v[0], new Set<string>())
             first.get(v[0]).add(v[0]);
         });
-        this.nullables = this.getNullable();
         while (1)
         {
             let done = false;
@@ -191,5 +191,74 @@ export class Grammar
                 break;
         }
         return first;
+    }
+    getFollow()
+    {
+        let follow = new Map<string, Set<string>>();
+        let first = this.getFirst();
+        this.nullables = this.getNullable();
+        let isfollow = true;
+        this.nonTerminals.forEach(v => 
+        {
+            if (isfollow)
+            {
+                follow.set(v[0], new Set<string>().add('$'));
+                isfollow = false;
+            }
+            else
+                follow.set(v[0], new Set<string>());
+        });
+        while (1)
+        {
+            let done = false;
+            this.nonTerminals.forEach(v => 
+            {
+                let productions = v[1].split("|");
+                productions.forEach(p => 
+                {
+                    let prods = p.trim().split(" ");
+                    for (let i = 0; i < prods.length; i++)
+                    {
+                        let x = prods[i];
+                        let bool = false;
+                        let has = this.nonTerminals.some(h => h.includes(x));
+                        if (has)
+                        {
+                            for (let j = i + 1; j < prods.length; j++)
+                            {
+                                let y = prods[j];
+                                first.get(y).forEach(item => 
+                                {
+                                    if (!follow.get(x).has(item))
+                                    {
+                                        follow.get(x).add(item);
+                                        done = true;
+                                    }
+                                });
+                                if (!this.nullables.has(y))
+                                {
+                                    bool = true;
+                                    break; 
+                                }
+                            }
+                            if (!bool)
+                            {
+                                follow.get(v[0]).forEach(val => 
+                                {
+                                    if (!follow.get(x).has(val))
+                                    {
+                                        follow.get(x).add(val);
+                                        done = true;
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+            });
+            if (!done)
+                break;
+        }
+        return follow;
     }
 }
