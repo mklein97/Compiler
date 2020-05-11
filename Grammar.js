@@ -1,49 +1,41 @@
 "use strict";
 exports.__esModule = true;
 var Node_1 = require("./Node");
-//import { error } from "util";
 var Grammar = /** @class */ (function () {
-    function Grammar(Gram) {
-        this.terminals = [];
-        this.nonTerminals = [];
-        this.nullable = new Set();
+    function Grammar(input) {
+        this.terminals = new Array();
+        this.nonTerminals = new Array();
+        this.nullables = new Set();
+        var initarray = input.split('\n');
         var s = new Set();
-        var input = Gram.split("\n");
-        var terms = [];
-        var nonTerms = [];
+        //this.terminals.push(["WHITESPACE", RegExp("\\s+")]);
+        var terms = new Array();
+        var nonTerms = new Array();
         var isTerm = true;
-        input.forEach(function (e) {
+        initarray.forEach(function (e) {
             if (e.length != 0) {
-                if (isTerm) {
+                if (isTerm)
                     terms.push(e);
-                }
-                else {
+                else
                     nonTerms.push(e);
-                }
             }
-            else {
+            else
                 isTerm = false;
-            }
         });
         for (var i = 0; i < terms.length; i++) {
-            if (terms[i].length == 0) {
+            if (terms[i].length === 0)
                 continue;
-            }
-            else if (!terms[i].includes(" -> ")) {
-                throw new Error("No Identifiers");
-            }
+            else if (!terms[i].includes(" -> "))
+                throw new Error("No identifiers");
             var ID = terms[i].split(" -> ");
-            if (s.has(ID[0])) {
-                //console.log(ID[0]);
-                throw new Error("Already has that variable");
-            }
-            else if (ID[0] == "")
-                throw new Error("Empty ID");
-            if (s.has(ID[1])) {
-                throw new Error("Regex already created");
-            }
-            else if (ID[1] == "")
-                throw new Error("Empty Regex");
+            if (s.has(ID[0]))
+                throw new Error("Duplicate variable");
+            else if (ID[0] === "")
+                throw new Error("No ID");
+            if (s.has(ID[1]))
+                throw new Error("Duplicate Regex");
+            else if (ID[1] === "")
+                throw new Error("No Regex");
             try {
                 new RegExp(ID[1]);
             }
@@ -55,18 +47,15 @@ var Grammar = /** @class */ (function () {
             this.terminals[i] = [ID[0], RegExp(ID[1])];
         }
         for (var i = 0; i < nonTerms.length; i++) {
-            if (nonTerms[i].length == 0) {
+            if (nonTerms[i].length === 0)
                 continue;
-            }
-            else if (!nonTerms[i].includes(" -> ")) {
+            else if (!nonTerms[i].includes(" -> "))
                 throw new Error("No junction");
-            }
             var ID = nonTerms[i].split(" -> ");
-            if (ID[0] == "")
-                throw new Error("Empty ID");
-            else if (ID[1] == "")
-                throw new Error("Empty nonterminal");
-            //console.log(this.nonTerminals);
+            if (ID[0] === "")
+                throw new Error("No ID");
+            else if (ID[1] === "")
+                throw new Error("No nonterminal");
             var found = this.nonTerminals.findIndex(function (e) { return e[0] === ID[0]; });
             if (found !== -1) {
                 var nonterm = this.nonTerminals[found];
@@ -74,52 +63,24 @@ var Grammar = /** @class */ (function () {
             }
             else if (!s.has(ID[0]))
                 s.add(ID[0]);
-            //console.log(s);
             this.nonTerminals[i] = [ID[0], ID[1]];
         }
         var used = new Set();
         var start = new Node_1.Node("expr");
         this.dfs(start, used);
         if (s !== undefined) {
-            s.forEach(function (def) {
-                if (!used.has(def)) { }
+            s.forEach(function (v) {
+                if (!used.has(v)) { }
                 //throw new Error(def + " was defined but is not used");
             });
         }
-        if (used != undefined) {
+        if (used !== undefined) {
             used.forEach(function (v) {
                 if (v !== '' && !s.has(v)) { }
                 //throw new Error(v + " is used but is not defined");
             });
         }
     }
-    Grammar.prototype.getNullable = function () {
-        var _this = this;
-        this.nullable = new Set();
-        var bool;
-        //console.log(this.nonTerminals);
-        while (true) {
-            bool = true;
-            this.nonTerminals.forEach(function (e) {
-                //console.log(e);
-                if (!_this.nullable.has(e[0])) {
-                    var productions = e[1].split("|");
-                    //console.log(productions);
-                    productions.forEach(function (p) {
-                        var pro = p.trim().split(" ");
-                        if (pro.every(function (s) { return _this.nullable.has(s) || s == "lambda"; })) {
-                            _this.nullable.add(e[0]);
-                            bool = false;
-                        }
-                    });
-                }
-            });
-            if (bool)
-                break;
-        }
-        //console.log(this.nullable);
-        return this.nullable;
-    };
     Grammar.prototype.dfs = function (node, used) {
         var _this = this;
         used.add(node.label);
@@ -138,11 +99,74 @@ var Grammar = /** @class */ (function () {
         }
         if (node.n !== undefined) {
             node.n.forEach(function (t) {
-                if (!used.has(t.label)) {
+                if (!used.has(t.label))
                     _this.dfs(t, used);
-                }
             });
         }
+    };
+    Grammar.prototype.getNullable = function () {
+        var _this = this;
+        this.nullables = new Set();
+        var done = false;
+        while (1) {
+            done = true;
+            this.nonTerminals.forEach(function (v) {
+                if (!_this.nullables.has(v[0])) {
+                    var productions = v[1].split("|");
+                    productions.forEach(function (p) {
+                        var prods = p.trim().split(" ");
+                        if (prods.every(function (s) { return _this.nullables.has(s) || s == "lambda"; })) {
+                            _this.nullables.add(v[0]);
+                            done = false;
+                        }
+                    });
+                }
+            });
+            if (done)
+                break;
+        }
+        return this.nullables;
+    };
+    Grammar.prototype.getFirst = function () {
+        var _this = this;
+        var first = new Map();
+        this.nonTerminals.forEach(function (v) {
+            first.set(v[0], new Set());
+        });
+        this.terminals.forEach(function (v) {
+            first.set(v[0], new Set());
+            first.get(v[0]).add(v[0]);
+        });
+        this.nullables = this.getNullable();
+        var _loop_1 = function () {
+            var done = false;
+            this_1.nonTerminals.forEach(function (v) {
+                var productions = v[1].split("|");
+                productions.forEach(function (p) {
+                    var prods = p.trim().split(" ");
+                    if (prods[0] === "lambda")
+                        prods = new Array();
+                    prods.every(function (item) {
+                        first.get(item).forEach(function (val) {
+                            if (!first.get(v[0]).has(val)) {
+                                done = true;
+                                first.get(v[0]).add(val);
+                            }
+                        });
+                        return _this.nullables.has(item);
+                    });
+                });
+            });
+            if (!done)
+                return "break";
+        };
+        var this_1 = this;
+        while (1) {
+            var state_1 = _loop_1();
+            if (state_1 === "break")
+                break;
+        }
+        return first;
     };
     return Grammar;
 }());
