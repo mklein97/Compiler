@@ -1,7 +1,7 @@
 
 declare var require:any;
 let fs = require("fs");
-import {Grammar} from "./Grammar";
+import {computeTable} from "./parser";
 
 function main(){
     let data:string = fs.readFileSync("tests.txt","utf8");
@@ -12,68 +12,157 @@ function main(){
     for(let i=0;i<tests.length;++i){
         
         let name: string = tests[i]["name"];
-        let expected: { [key:string] : string[]} = tests[i]["follow"];
-        let input: string = tests[i]["input"];
-
-        let G = new Grammar(input);
+        let grammarSpec = tests[i]["grammarSpec"];
+        let expected: { [key:string] : { [key:string]: string[][] } } = tests[i]["table"];
+        let nonterminals : string[] = tests[i]["nonterminals"];
+        let terminals : string[] = tests[i]["terminals"];
         
-        let first : Map<string,Set<string>> = G.getFollow();
-        if( !dictionariesAreSame( expected, first ) ){
+        let T = computeTable(grammarSpec);
+
+        let html = makeTable( T );
+        fs.writeFileSync( name+".table.html", html );
+        
+        if( !tablesAreSame( expected, T, terminals, nonterminals ) ){
             console.log("Test "+name+" failed");
             ++numFailed;
+            break;
         } 
         else
             ++numPassed;
+            
+        
     }
     console.log(numPassed+" tests OK"+"      "+numFailed+" tests failed" );
     return numFailed==0;
 }
 
-function dictionariesAreSame( s1: { [key:string] : string[]}, s2: Map<string,Set<string>> ){
-    let M1: Map<string,Set<string>> = toMap(s1);
-    let M2 = s2;
+function makeTable( T : Map<string,Map<string,any> > )
+{
+    let L : string[] = [];
+    L.push("<!DOCTYPE html>")
+    L.push("<html><head><meta charset=utf8>");
+    L.push("<style>");
+    L.push("td , th { border: 1px solid black; }");
+    L.push("div.production { white-space: nowrap; }");
+    L.push("</style>");
+    L.push("</head><body>");
+    L.push("<table style='border-collapse:collapse'>");
     
-    let k1: string[] = [];
-    let k2: string[] = [];
-    for(let k of M1.keys() )
-        k1.push(k);
-    for(let k of M2.keys() )
-        k2.push(k);
-    k1.sort();
-    k2.sort();
-    if( !listsEqual(k1,k2) ){
-        console.log("Lists not equal:",k1,k2);
-        return false;
-    }
-    for(let k of k1){
-        if( !listsEqual( M1.get(k), M2.get(k) ) ){
-            console.log("Lists not equal:",M1.get(k), M2.get(k)  );
-            return false;
-        }
-    }
-    return true;
+    let terminalSet : Set<string> = new Set();
+    let terminals : string[] = [];
+    let nonterminals: string[] = [];
+    T.forEach( ( value: any, key: string ) => {
+        nonterminals.push(key);
+    });
+    nonterminals.forEach( (x:string) => {
+        T.get(x).forEach( (value: any, key: string) => {
+            terminalSet.add(key);
+        });
+    });
+    terminalSet.forEach( (x:string) => {
+        terminals.push(x);
+    });
+    terminals.sort();
+    nonterminals.sort();
+    
+    L.push("<tr>");
+    L.push("<th></th>");
+    terminals.forEach( (t:string) => {
+        L.push(`<th>${t}</th>`);
+    });
+    L.push("</tr>");
+    
+    nonterminals.forEach( (n:string) => {
+        L.push("<tr>");
+        L.push(`<td>${n}</td>`);
+        terminals.forEach( (t:string) => {
+            let tstr="";
+            if( T.get(n).has(t) ){
+                let lst : any[] = T.get(n).get(t);
+                lst.forEach( (x: any) => {
+                    tstr += "<div class='production'>";
+                    let ll : string[] = [];
+                    x.forEach( (sym: string) => {
+                        ll.push(sym);
+                    });
+                    tstr += ll.join(" ");
+                    tstr += "</div>";
+                });
+            }
+            L.push(`<td>${tstr}</td>`);
+        });
+        L.push("</tr>");
+    });
+
+    
+    L.push("</table></body></html>");
+    return L.join("\n");
 }
 
-function toMap( s: { [key:string] : string[]} ) {
-    let r : Map<string,Set<string>> = new Map();
-    for(let k in s ){
-        r.set(k,new Set());
-        s[k].forEach( (x:string) => {
-            r.get(k).add(x);
-        });
-    }
-    return r;
-}
+function tablesAreSame( table1: { [key:string] : { [key:string]: string[][] } }, table2: Map<string,Map<string,any> >, terminals: string[], nonterminals: string[] ){
     
-function listsEqual(L1a: any, L2a: any )
+    
+    return nonterminals.every( (n: string) => {
+        return terminals.every( (t: string) => {
+            var p1: string[][];
+            var p2: any;
+            if( table1[n] === undefined ){
+                p1 = undefined;
+            } else {
+                if( table1[n][t] === undefined ) {
+                    p1 = undefined;
+                } else {
+                    p1 = table1[n][t];
+                }
+            }
+            if( !table2.has(n) )
+                p2 = undefined;
+            else{
+                if( !table2.get(n).has(t) ){
+                    p2 = undefined;
+                } else {
+                    p2 = table2.get(n).get(t);
+                }
+            }
+            
+            let match : boolean = true;;
+            
+            match = match && ( (p1 === undefined) === (p2 === undefined ) );
+            
+            if( p1 !== undefined ){
+                
+                var lst2 : string[] = [];
+                p2.forEach( (x: string) => {
+                    lst2.push(x);
+                });
+                
+                match = match && listOfListsEqual(p1,lst2);
+            }
+            
+            if( !match ){
+                console.log("Row "+n+" column "+t+":");
+                console.log("    ",p1);
+                console.log("    ",lst2);
+                return false;
+            } else 
+                return true;
+        });
+    });
+}
+  
+function listOfListsEqual(L1a: any[], L2a: any[] )
 {
     let L1: string[] = [];
     let L2: string[] = [];
-    L1a.forEach( (x:string) => {
-        L1.push(x);
+    L1a.forEach( (x:any[]) => {
+        x.forEach( (y:string) => {
+            L1.push(y);
+        });
     });
-    L2a.forEach( (x:string) => {
-        L2.push(x);
+    L2a.forEach( (x:any[]) => {
+        x.forEach( (y:string) => {
+            L2.push(y);
+        });
     });
     
     L1.sort();

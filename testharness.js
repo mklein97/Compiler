@@ -1,18 +1,7 @@
 "use strict";
-var __values = (this && this.__values) || function(o) {
-    var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
-    if (m) return m.call(o);
-    if (o && typeof o.length === "number") return {
-        next: function () {
-            if (o && i >= o.length) o = void 0;
-            return { value: o && o[i++], done: !o };
-        }
-    };
-    throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
-};
 exports.__esModule = true;
 var fs = require("fs");
-var Grammar_1 = require("./Grammar");
+var parser_1 = require("./parser");
 function main() {
     var data = fs.readFileSync("tests.txt", "utf8");
     var tests = JSON.parse(data);
@@ -20,13 +9,17 @@ function main() {
     var numFailed = 0;
     for (var i = 0; i < tests.length; ++i) {
         var name_1 = tests[i]["name"];
-        var expected = tests[i]["follow"];
-        var input = tests[i]["input"];
-        var G = new Grammar_1.Grammar(input);
-        var first = G.getFollow();
-        if (!dictionariesAreSame(expected, first)) {
+        var grammarSpec = tests[i]["grammarSpec"];
+        var expected = tests[i]["table"];
+        var nonterminals = tests[i]["nonterminals"];
+        var terminals = tests[i]["terminals"];
+        var T = parser_1.computeTable(grammarSpec);
+        var html = makeTable(T);
+        fs.writeFileSync(name_1 + ".table.html", html);
+        if (!tablesAreSame(expected, T, terminals, nonterminals)) {
             console.log("Test " + name_1 + " failed");
             ++numFailed;
+            break;
         }
         else
             ++numPassed;
@@ -34,83 +27,121 @@ function main() {
     console.log(numPassed + " tests OK" + "      " + numFailed + " tests failed");
     return numFailed == 0;
 }
-function dictionariesAreSame(s1, s2) {
-    var e_1, _a, e_2, _b, e_3, _c;
-    var M1 = toMap(s1);
-    var M2 = s2;
-    var k1 = [];
-    var k2 = [];
-    try {
-        for (var _d = __values(M1.keys()), _e = _d.next(); !_e.done; _e = _d.next()) {
-            var k = _e.value;
-            k1.push(k);
-        }
-    }
-    catch (e_1_1) { e_1 = { error: e_1_1 }; }
-    finally {
-        try {
-            if (_e && !_e.done && (_a = _d["return"])) _a.call(_d);
-        }
-        finally { if (e_1) throw e_1.error; }
-    }
-    try {
-        for (var _f = __values(M2.keys()), _g = _f.next(); !_g.done; _g = _f.next()) {
-            var k = _g.value;
-            k2.push(k);
-        }
-    }
-    catch (e_2_1) { e_2 = { error: e_2_1 }; }
-    finally {
-        try {
-            if (_g && !_g.done && (_b = _f["return"])) _b.call(_f);
-        }
-        finally { if (e_2) throw e_2.error; }
-    }
-    k1.sort();
-    k2.sort();
-    if (!listsEqual(k1, k2)) {
-        console.log("Lists not equal:", k1, k2);
-        return false;
-    }
-    try {
-        for (var k1_1 = __values(k1), k1_1_1 = k1_1.next(); !k1_1_1.done; k1_1_1 = k1_1.next()) {
-            var k = k1_1_1.value;
-            if (!listsEqual(M1.get(k), M2.get(k))) {
-                console.log("Lists not equal:", M1.get(k), M2.get(k));
+function makeTable(T) {
+    var L = [];
+    L.push("<!DOCTYPE html>");
+    L.push("<html><head><meta charset=utf8>");
+    L.push("<style>");
+    L.push("td , th { border: 1px solid black; }");
+    L.push("div.production { white-space: nowrap; }");
+    L.push("</style>");
+    L.push("</head><body>");
+    L.push("<table style='border-collapse:collapse'>");
+    var terminalSet = new Set();
+    var terminals = [];
+    var nonterminals = [];
+    T.forEach(function (value, key) {
+        nonterminals.push(key);
+    });
+    nonterminals.forEach(function (x) {
+        T.get(x).forEach(function (value, key) {
+            terminalSet.add(key);
+        });
+    });
+    terminalSet.forEach(function (x) {
+        terminals.push(x);
+    });
+    terminals.sort();
+    nonterminals.sort();
+    L.push("<tr>");
+    L.push("<th></th>");
+    terminals.forEach(function (t) {
+        L.push("<th>" + t + "</th>");
+    });
+    L.push("</tr>");
+    nonterminals.forEach(function (n) {
+        L.push("<tr>");
+        L.push("<td>" + n + "</td>");
+        terminals.forEach(function (t) {
+            var tstr = "";
+            if (T.get(n).has(t)) {
+                var lst = T.get(n).get(t);
+                lst.forEach(function (x) {
+                    tstr += "<div class='production'>";
+                    var ll = [];
+                    x.forEach(function (sym) {
+                        ll.push(sym);
+                    });
+                    tstr += ll.join(" ");
+                    tstr += "</div>";
+                });
+            }
+            L.push("<td>" + tstr + "</td>");
+        });
+        L.push("</tr>");
+    });
+    L.push("</table></body></html>");
+    return L.join("\n");
+}
+function tablesAreSame(table1, table2, terminals, nonterminals) {
+    return nonterminals.every(function (n) {
+        return terminals.every(function (t) {
+            var p1;
+            var p2;
+            if (table1[n] === undefined) {
+                p1 = undefined;
+            }
+            else {
+                if (table1[n][t] === undefined) {
+                    p1 = undefined;
+                }
+                else {
+                    p1 = table1[n][t];
+                }
+            }
+            if (!table2.has(n))
+                p2 = undefined;
+            else {
+                if (!table2.get(n).has(t)) {
+                    p2 = undefined;
+                }
+                else {
+                    p2 = table2.get(n).get(t);
+                }
+            }
+            var match = true;
+            ;
+            match = match && ((p1 === undefined) === (p2 === undefined));
+            if (p1 !== undefined) {
+                var lst2 = [];
+                p2.forEach(function (x) {
+                    lst2.push(x);
+                });
+                match = match && listOfListsEqual(p1, lst2);
+            }
+            if (!match) {
+                console.log("Row " + n + " column " + t + ":");
+                console.log("    ", p1);
+                console.log("    ", lst2);
                 return false;
             }
-        }
-    }
-    catch (e_3_1) { e_3 = { error: e_3_1 }; }
-    finally {
-        try {
-            if (k1_1_1 && !k1_1_1.done && (_c = k1_1["return"])) _c.call(k1_1);
-        }
-        finally { if (e_3) throw e_3.error; }
-    }
-    return true;
-}
-function toMap(s) {
-    var r = new Map();
-    var _loop_1 = function (k) {
-        r.set(k, new Set());
-        s[k].forEach(function (x) {
-            r.get(k).add(x);
+            else
+                return true;
         });
-    };
-    for (var k in s) {
-        _loop_1(k);
-    }
-    return r;
+    });
 }
-function listsEqual(L1a, L2a) {
+function listOfListsEqual(L1a, L2a) {
     var L1 = [];
     var L2 = [];
     L1a.forEach(function (x) {
-        L1.push(x);
+        x.forEach(function (y) {
+            L1.push(y);
+        });
     });
     L2a.forEach(function (x) {
-        L2.push(x);
+        x.forEach(function (y) {
+            L2.push(y);
+        });
     });
     L1.sort();
     L2.sort();
